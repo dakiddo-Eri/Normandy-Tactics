@@ -1,0 +1,333 @@
+ERI LICENSE 1.0
+Copyright (C) 2026 Nguyen Ngo
+Licensing contact: ericocalifornia@gmail.com
+
+1. STATUS AND DEFINITIONS
+
+Eri License 1.0 is an independent copyright license based on open-source and
+Affero principles. It is not the GNU Affero General Public License, is not a
+modified GNU license, and does not claim to be AGPL-3.0.
+
+"Licensed Work" means this Project Omni source code and documentation
+identified by this notice, together with releases, modifications, and files
+explicitly distributed under Eri License 1.0.
+
+"Licensee" means each person or entity receiving rights under this License.
+"Licensor" means Nguyen Ngo and any successor or administering entity
+lawfully authorized to administer this License.
+"Covered Work" means the Licensed Work and a work that contains, adapts,
+incorporates, statically or dynamically links executable code from, combines,
+or distributes executable code from the Licensed Work as a combined work.
+"Corresponding Source" means the complete preferred form for making
+modifications, including source code, build scripts, interface definitions,
+installation scripts, container definitions, image build files, deployment
+configuration, and other files reasonably necessary to obtain, build, install,
+and reproduce the Covered Work.
+
+"Affiliate" means an entity that directly or indirectly controls, is controlled
+by, or is under common control with the operating organization, or a wholly
+owned subsidiary. "Control" means ownership or control of more than fifty
+percent of voting interests or the power to direct management.
+
+"Business Partner" means an independently operated entity receiving access
+under a written, access-restricted, non-resale agreement solely to perform
+services for or with the operating organization. A business partner is not
+an Affiliate unless it satisfies the Affiliate definition above.
+
+"External User" means a customer, unaffiliated public or private user, or
+business partner operating, selling, redistributing, publicly hosting, or
+using the Licensed Work for its own independent purposes. A Business Partner
+acting only under the operating organization's direction and without independent
+rights to operate or redistribute the work is an internal participant, not
+an External User.
+
+2. COPYRIGHT AND OPEN-SOURCE RIGHTS
+
+Nguyen Ngo retains copyright in the Licensed Work. Subject to this License,
+he grants every Licensee a perpetual, worldwide, royalty-free,
+non-exclusive right to use, execute, copy, study, modify, publish, distribute,
+commercially use, and freely share the Licensed Work. This grant also applies
+to any individual file or code portion that is independently distributable
+and not a protected adaptation of the Licensed Work. A portion is separately
+copyable and reusable when it is distributed in unmodified form, consists
+of independent ideas or implementation created without copying protected
+expression from the Licensed Work, or is otherwise separable from the Licensed
+Work under copyright law. A portion is not independently reusable merely
+because it was extracted, renamed, refactored, or moved to another file.
+
+3. SAME-LICENSE AND COMBINED-WORK CONDITIONS
+
+A Licensee may convey or make available a Covered Work only if:
+
+(a) The Covered Work is licensed in full under Eri License 1.0, unless a
+written exception under Section 9 applies;
+
+(b) Every copy and distributed or executable Covered Work conspicuously
+includes this copyright notice and the complete Eri License 1.0 text;
+
+(c) Corresponding Source is provided to each recipient in a complete,
+restorable form under a mechanism that permits modification and redistribution;
+
+(d) Prominent modification notices and relevant dates are included when
+required; and
+
+(e) No additional restriction is imposed on the rights granted here.
+
+A separate and independent work is not a Covered Work merely because it is
+stored beside the Licensed Work, calls the Licensed Work through a public or
+undocumented API, exchanges command-line input or output, uses inter-process
+communication, or communicates through a remote network protocol. The mere
+availability of API interoperability does not create a Covered Work. Source
+copying, protected-expression adaptation, static linking, dynamic linking
+that loads or executes Licensed Work, bundling executable code, or distribution
+as a combined work is covered by this Section. Whether dynamic linking creates
+a Covered Work depends on whether the result contains or executes copied or
+adapted protected code, not on the act of linking alone.
+
+A container, virtual machine, serverless function, sidecar, microservice,
+pod, process, plugin, dynamic module, remote worker, or isolated runtime does
+not create an independent status when it contains or executes the Licensed
+Work or a modified version. Routing, proxying, orchestration, batching,
+tokenization, or third-party hosting does not remove the obligation.
+Separate processes that communicate solely to perform one hosted service
+using the Licensed Work remain part of that hosted service.
+
+4. NETWORK SERVICE SOURCE
+
+A Licensee that makes an unchanged or modified Covered Work available to
+customers or other External Users through a public or private network must
+prominently offer Corresponding Source for the complete Covered Work to every
+interacting user. The offer must be available at no charge through a standard
+or customary network mechanism and must include the complete source, build,
+container, deployment, and modification materials required to reproduce the
+covered implementation.
+
+A hosted unchanged copy is not separately required to disclose source when
+its complete source is already freely available under this License at no charge
+through an established public mechanism and the hosted copy is exactly that
+source plus only operational configuration. If the Licensee modifies the hosted
+code or combines it with other covered code, it must offer the source of the
+complete Covered Work.
+
+This obligation applies regardless of HTTP, streaming, chunked transfer,
+WebSockets, gRPC, containers, LLM or other APIs, or another protocol.
+
+The network obligation does not apply to an independent application that only
+makes ordinary requests to a separately deployed Licensed Work. Generated
+text, images, data, media, model weights, model parameters, training data,
+prompts, embeddings, and datasets are not Covered Works solely because they
+were produced or statistically derived through use of the Licensed Work,
+provided they do not contain protected expression copied from or adapted
+from the Licensed Work or a Covered Work.
+
+5. COMPLETE-COPY AND PORTION DISTRIBUTION
+
+Complete copies, partial files, reusable portions, source archives, object
+code, and complete downloads may be distributed freely when Eri License 1.0
+accompanies the materials and each applicable source obligation is satisfied.
+Network transfer protocols do not limit the grant. Ordinary downloading,
+uploading, chunked delivery, and streaming delivery of complete restorable
+software packages are permitted. Incomplete fragments may be distributed only
+if the recipient receives enough complete and restorable Corresponding Source
+for the distributed material and the distribution does not evade source-copy
+obligations.
+
+6. PRIVATE AND INTERNAL USE
+
+A Licensee may use, execute, run, modify, or operate the Licensed Work
+privately or internally, including for employee tools, corporate back-office
+systems, payroll, logistics, data storage, batch processing, and other
+commercial operations, without publishing or distributing Corresponding
+Source solely because employees, contractors, or other authorized personnel
+access that private operation over a network.
+
+This private-use exception applies only while the operation is genuinely
+internal and is not offered to customers or to the general public as a hosted
+service, SaaS offering, API, or public-facing product. The exception covers
+employees, contractors acting under the operating organization's direction,
+Affiliates, and Business Partners with access limited to performing work for
+that organization. A private service may be used by those participants without
+source disclosure.
+
+The operation must not be used to evade distribution obligations by allowing
+an External User to remotely operate or independently obtain benefits from the
+Licensed Work or a Covered Work. Merely giving a Business Partner controlled,
+access-restricted access to perform contracted work is not external SaaS use.
+Giving that partner independent operation rights, customer-facing operation
+rights, resale rights, or an ability to offer the operation to others is
+external use and triggers Section 4.
+
+When a private service is made publicly available, sold to customers,
+provided to unaffiliated partners as a hosted offering, or otherwise made
+available to users outside the operating organization's internal and Affiliate
+participant group, Section 4 governs and Corresponding Source must be offered
+to those remote users. An internal tool that only calls an independently
+deployed Licensed Work through an ordinary API and does not contain or execute
+the Licensed Work remains independent.
+
+7. COMMERCIAL USE
+
+Commercial use, sale, support, paid distribution, and fee-based network
+operation are permitted, but the right to redistribute remains available to
+recipients and cannot be contracted away for the Licensed Work.
+
+8. THIRD-PARTY MATERIAL
+
+The Licensed Work does not grant rights in third-party code or data bundled
+with it. Third-party materials remain subject to their own licenses. Eri
+License applies only to the copyrightable portions owned by or properly
+licensed to the applicable Eri licensors. It does not replace or restrict
+third-party component licenses.
+
+Mere aggregation in a repository, installer, archive, distribution package,
+operating system, or download does not combine independent programs into a
+Covered Work. A separate program remains independent if it has independent
+source, purpose, authorship, and operation and is not copied, adapted,
+linked, or combined with the Licensed Work as described by Section 3.
+
+9. WRITTEN EXCEPTIONS
+
+No exception to Sections 2 through 8 is effective unless it is explicitly
+granted in writing by Nguyen Ngo or by a lawful copyright successor,
+administering foundation, trust, LLC, corporation, or governance board
+authorized through a public written instrument. The grant must identify the
+exact exception, work, Licensee, purpose, term, and scope. Oral permission,
+silence, payment, private forks, implied permission, and absence of public
+notice do not grant exceptions.
+
+A person or entity administering exceptions may not rewrite this License or
+alter the rights already granted to existing compliant Licensees. It may
+only make specific exceptions authorized by this Section. A commercial
+exception must be documented publicly or made available to the affected
+recipients through a durable record. An administering entity may be
+succeeded only through a written instrument specifying lawful authority.
+
+10. CONTRIBUTOR RIGHTS
+
+Contributors retain copyright in their contributions unless they execute a
+separate written copyright assignment. Before a contribution is accepted,
+its contributor must sign or electronically accept a Contributor License
+Agreement applicable to that contribution. The agreement must grant:
+
+(a) permission to distribute, reproduce, modify, and sublicense the
+contribution under Eri License 1.0 and later numbered Eri License versions;
+
+(b) a direct grant of rights to downstream recipients under the applicable
+Eri License;
+
+(c) authority for the project administrator to enforce the license;
+
+(d) a patent license covering claims necessarily infringed by the
+contribution, when owned or controlled by the contributor and applicable to
+normal use of the contribution in the Licensed Work; and
+
+(e) an explicit statement of whether the project may grant commercial,
+proprietary, or dual-license exceptions covering the contribution.
+
+A contributor agreement may not revoke recipient rights or require an
+additional license fee to exercise rights already granted. No ownership is
+transferred unless the contributor signs a separate assignment identifying
+that copyright interest. A dual-license grant does not require a contributor
+to assign ownership.
+
+Contributions must not secretly impose a more restrictive license or contain
+third-party code under an incompatible term.
+
+11. TRADEMARKS AND BRANDING
+
+This License grants no right to use Nguyen Ngo's names, Project Omni's names,
+logos, trade names, domains, or trademarks except for factual identification
+and attribution. Official project branding remains subject to a separate
+trademark policy.
+
+12. VERSIONING AND AMENDMENT
+
+This document is Eri License 1.0. Amendments require a numbered Eri License
+version published by Nguyen Ngo or an authorized administering board under
+written governance rules.
+
+Copies licensed under Eri License 1.0 remain governed by Eri License 1.0
+regardless of when or by whom they are redistributed. A later release may
+offer Eri License 1.0 or a later version if the applicable licensor or
+contributor agreement clearly provides that option.
+
+A later Eri License version may be published only by Nguyen Ngo or a copyright
+successor, administering board, or lawful assignee authorized in writing to
+publish numbered Eri License versions. A later version may not revoke rights
+already granted for an existing copy or impose retroactive restrictions on it.
+The historical text of each Eri License version must remain publicly available.
+
+13. TERMINATION AND RESTORATION
+
+A Licensee's rights terminate automatically upon a material violation that
+is not exempted in writing. The Licensor must give written notice identifying
+the applicable Section and violation. If the violation is curable, the
+Licensee has thirty days after receiving notice to cease and cure it, and
+rights are reinstated upon timely cure.
+
+Rights are also provisionally reinstated if the Licensee ceases every violation
+and cure is not possible before notice. Rights become permanently reinstated
+if the Licensor fails to notify the Licensee of the violation by reasonable
+means within sixty days after the Licensee has ceased the violation, or if
+applicable law requires permanent reinstatement sooner. Termination does not
+revive a violation or revoke the licenses of compliant downstream recipients.
+
+14. DISCLAIMER AND LIABILITY
+
+THE LICENSED WORK IS PROVIDED "AS IS," WITHOUT ANY WARRANTY, EXPRESS OR
+IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE, TITLE, ACCURACY, OR NON-INFRINGEMENT. THE ENTIRE RISK ARISING FROM
+USE OR DISTRIBUTION REMAINS WITH THE LICENSEE.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, NO COPYRIGHT HOLDER OR
+CONTRIBUTOR WILL BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
+EXEMPLARY, PUNITIVE, OR OTHER DAMAGES; LOSS OF DATA, PROFITS, REVENUE,
+GOODWILL, USE, OR SERVICE; CORRUPTION; OR ANY FAILURE OR INTERRUPTION,
+ARISING FROM USE, DISTRIBUTION, MODIFICATION, OR INABILITY TO USE THE
+LICENSED WORK.
+
+15. GOVERNANCE AND SUCCESSION
+
+Exceptions and future Eri License versions must be administered under a
+written governance charter. It should define board appointment and removal,
+conflict-of-interest procedures, public exception records, supermajority
+requirements for changing governance or the license, and founder or successor
+authority. This license does not itself appoint a board or transfer copyright.
+A copyright transfer requires the signed written instrument required by
+applicable law.
+
+16. INTERPRETATION AND GOVERNING LAW
+
+This License governs only the subject matters expressly stated here. It does
+not restrict independently created work, ideas, algorithms, output that does
+not contain protected expression, or interoperating services that do not
+contain or execute the Licensed Work. If a court cannot enforce a restriction,
+it shall be narrowed to the minimum extent necessary to preserve the
+enforcement of the other terms and the open-source rights granted here.
+
+This License and every dispute relating to it are governed by the laws of the
+State of California, United States, excluding conflict-of-law rules. Subject
+to applicable mandatory jurisdictional law, any action arising from this
+License must be brought exclusively in a state or federal court located in
+Santa Clara County, California. The Licensor and each Licensee consent to
+personal jurisdiction and venue in those courts. This clause does not waive
+mandatory consumer-protection or copyright-law rights that cannot lawfully
+be waived.
+
+17. AUTOMATIC DOWNSTREAM RIGHTS
+
+Every person or entity receiving a Covered Work under this License
+automatically receives a direct, perpetual, worldwide, non-exclusive,
+royalty-free license from each applicable copyright holder to use, execute,
+copy, study, modify, distribute, and make available that Covered Work under
+Eri License 1.0 or the applicable later version permitted by Section 12.
+
+No downstream recipient must sign an additional agreement, pay a fee to the
+intermediary, or obtain separate permission to exercise these rights. A
+contributor, distributor, repository, or intermediary may not revoke,
+restrict, condition, or encumber rights automatically granted to downstream
+recipients. This automatic grant applies only to copyright interests lawfully
+covered by Eri License 1.0; contributors' separate applicable rights remain
+subject to their signed contributor agreements.
+
+                         END OF ERI LICENSE 1.0
