@@ -367,7 +367,9 @@ class Renderer:
         barrel = (int(px + math.cos(gun.facing) * 25), int(py + math.sin(gun.facing) * 25))
         pygame.draw.line(self.screen, (35, 39, 34), (px, py), barrel, 5 if gun.kind == "cannon" else 3)
         pygame.draw.circle(self.screen, GOLD, (px, py), 3)
-        if math.hypot(battle.player.x - gun.x, battle.player.y - gun.y) <= 3.2 and not battle.active_emplacement:
+        if gun.operator and not gun.operator.player:
+            self._text("AI MANNING", (px, py - 24), 12, GOLD, "midbottom")
+        elif math.hypot(battle.player.x - gun.x, battle.player.y - gun.y) <= 3.2 and not battle.active_emplacement:
             self._text("E  MOUNT", (px, py - 24), 13, GOLD, "midbottom")
 
     def draw_battle(self, battle: Battle, dt: float, mouse: tuple[int, int], aiming: bool = False) -> None:
@@ -501,8 +503,9 @@ class Renderer:
                                 [(plane_center[0] + 18, plane_center[1]),
                                  (plane_center[0] + 8, plane_center[1] - 8),
                                  (plane_center[0] + 4, plane_center[1] + 8)])
+        manned_soldiers = {gun.operator for gun in battle.emplacements if gun.operator}
         for soldier in battle.all_soldiers:
-            if soldier.alive and not (battle.active_emplacement and soldier.player):
+            if soldier.alive and soldier not in manned_soldiers:
                 self._draw_soldier(soldier)
         for tracer in battle.tracers if self.combat_effects else ():
             progress = 1 - tracer.life / tracer.duration
@@ -513,6 +516,10 @@ class Renderer:
             start = (int(sx * TILE - self.camera_x), int(TOP_H + sy * TILE - self.camera_y))
             color = GOLD if tracer.faction != "german" else (235, 105, 78)
             pygame.draw.line(self.screen, color, start, tip, 3 if tracer.heavy else 2)
+        if battle.mission.title == "NIGHT RAID":
+            nightfall = pygame.Surface((w, view_h), pygame.SRCALPHA)
+            nightfall.fill((5, 12, 30, 150))
+            self.screen.blit(nightfall, (0, TOP_H))
         self.screen.set_clip(None)
 
         self._draw_crosshair(mouse, aiming, battle.player.recoil, battle.hit_marker_timer > 0)
@@ -659,7 +666,9 @@ class Renderer:
             self._menu_button("back", "BACK", pygame.Rect(panel.x + 55, panel.bottom - 70, 350, 48))
 
     def draw_map_editor(self, world, mission, selected_tile: str, mission_index: int,
-                        editor_orientation: float = 0.0) -> None:
+                        editor_orientation: float = 0.0, editor_tool: str = "terrain",
+                        emplacement_kind: str = "mg_nest",
+                        emplacements: list[dict[str, object]] | None = None) -> None:
         w, h = self.screen.get_size()
         view_top, view_bottom = TOP_H, h - 70
         view = pygame.Rect(0, view_top, w, view_bottom - view_top)
@@ -685,16 +694,31 @@ class Renderer:
                          (marker[0] + 16, marker[1]), 2)
         pygame.draw.line(self.screen, GOLD, (marker[0], marker[1] - 16),
                          (marker[0], marker[1] + 16), 2)
+        emplacement_colors = {"mg_nest": (178, 191, 126), "bunker": (167, 139, 105),
+                              "cannon": (214, 128, 78), "artillery": (175, 104, 77)}
+        for placement in emplacements or ():
+            kind, x, y = placement.get("kind"), placement.get("x"), placement.get("y")
+            if kind not in emplacement_colors or not isinstance(x, int) or not isinstance(y, int):
+                continue
+            center = (int((x + 0.5) * TILE - self.camera_x),
+                      int(view_top + (y + 0.5) * TILE - self.camera_y))
+            pygame.draw.circle(self.screen, emplacement_colors[kind], center, 10)
+            pygame.draw.circle(self.screen, INK, center, 10, 2)
+            self._text({"mg_nest": "MG", "bunker": "BG", "cannon": "C", "artillery": "A"}[kind],
+                       center, 11, INK, "center", self.small)
         self.screen.set_clip(None)
         pygame.draw.rect(self.screen, INK, (0, 0, w, TOP_H))
         self._text(f"MAP EDITOR / {mission.title}  ({mission_index + 1}/{len(CAMPAIGNS)})",
                    (14, 16), 20, GOLD)
         self._text(f"PAINT: {selected_tile.upper()}  ·  ROTATION {round(math.degrees(editor_orientation)) % 360}°",
                    (w - 14, 18), 15, PAPER, "topright")
+        self._text(f"MODE: {mission.mode.upper()}  ·  TOOL: {editor_tool.upper()}"
+                   f"{' / ' + emplacement_kind.upper() if editor_tool == 'emplacement' else ''}",
+                   (14, 40), 14, MUTED)
         pygame.draw.rect(self.screen, PANEL, (0, h - 70, w, 70))
         palette_labels = "   ".join(f"{(i + 1) % 10}:{tile.upper()}" for i, tile in enumerate(self.EDITOR_PALETTE))
         self._text(self._fit_text(palette_labels, w - 24, 13), (w // 2, h - 54), 13, PAPER, "midtop")
-        help_text = "LMB paint  ·  RMB sample+angle  ·  R rotate  ·  Arrows pan  ·  [ / ] mission  ·  S save  ·  Esc exit"
+        help_text = "T terrain  ·  P objective  ·  G cycle/place gun  ·  RMB remove gun  ·  F mode  ·  S save  ·  Esc exit"
         self._text(self._fit_text(help_text, w - 24, 14), (w // 2, h - 26), 14, MUTED, "midtop")
 
     def draw_debrief(self, battle: Battle) -> None:

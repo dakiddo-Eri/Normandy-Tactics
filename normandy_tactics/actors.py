@@ -69,8 +69,9 @@ class Soldier:
     maneuver_side: int = 1
     path_timer: float = 0.0
     build_charges: int = 2
-    grenades_remaining: int = 1
+    grenades_remaining: int = 0
     grenade_decided: bool = False
+    grenade_used: bool = False
 
     def __post_init__(self) -> None:
         weapon = WEAPONS[self.weapon_key]
@@ -147,7 +148,7 @@ class ThrownGrenade:
     owner: Soldier | None = None
     life: float = 0.82
     duration: float = 0.82
-    radius: float = 4.5
+    radius: float = 1.75
 
     @property
     def progress(self) -> float:
@@ -186,3 +187,4 @@ class MountedGun:
     fire_timer: float = 0.0
     facing: float = 0.0
     ammo: int = 0
+    operator: Soldier | None = None

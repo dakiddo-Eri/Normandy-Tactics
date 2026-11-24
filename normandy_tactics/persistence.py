@@ -12,6 +12,7 @@ from typing import Any
 
 
 SAVE_VERSION = 1
+PROJECT_MAP_DIRECTORY = Path(__file__).resolve().parents[1] / "data" / "maps"
 
 
 def user_data_directory() -> Path:
@@ -100,29 +101,70 @@ class SaveStore:
     def load_map_data(
         self, mission_index: int, width: int, height: int,
     ) -> tuple[list[list[str]] | None, list[list[float]] | None]:
-        path = self.directory / "maps" / f"mission_{mission_index + 1:02}.json"
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            rows = raw.get("tiles") if isinstance(raw, dict) else None
-            if (isinstance(rows, list) and len(rows) == height
-                    and all(isinstance(row, list) and len(row) == width
-                            and all(isinstance(tile, str) for tile in row) for row in rows)):
-                orientations = raw.get("orientations")
-                valid_orientations = (
-                    isinstance(orientations, list) and len(orientations) == height
-                    and all(
-                        isinstance(row, list) and len(row) == width
-                        and all(isinstance(angle, (int, float)) and not isinstance(angle, bool)
-                                and math.isfinite(angle) for angle in row)
-                        for row in orientations
+        for path in self._map_paths(mission_index):
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                rows = raw.get("tiles") if isinstance(raw, dict) else None
+                if (isinstance(rows, list) and len(rows) == height
+                        and all(isinstance(row, list) and len(row) == width
+                                and all(isinstance(tile, str) for tile in row) for row in rows)):
+                    orientations = raw.get("orientations")
+                    valid_orientations = (
+                        isinstance(orientations, list) and len(orientations) == height
+                        and all(
+                            isinstance(row, list) and len(row) == width
+                            and all(isinstance(angle, (int, float)) and not isinstance(angle, bool)
+                                    and math.isfinite(angle) for angle in row)
+                            for row in orientations
+                        )
                     )
-                )
-                return rows, orientations if valid_orientations else None
-        except FileNotFoundError:
-            return None, None
-        except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
-            self.logger.exception("Could not load custom map %d: %s", mission_index, error)
+                    return rows, orientations if valid_orientations else None
+            except FileNotFoundError:
+                continue
+            except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
+                self.logger.exception("Could not load custom map %d: %s", mission_index, error)
         return None, None
+
+    def load_mission_settings(self, mission_index: int, width: int, height: int) -> dict[str, object]:
+        """Load validated mission/editor settings saved alongside a custom map."""
+        for path in self._map_paths(mission_index):
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                continue
+            except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
+                self.logger.exception("Could not load mission settings %d: %s", mission_index, error)
+                continue
+            settings = raw.get("mission") if isinstance(raw, dict) else None
+            if not isinstance(settings, dict):
+                return {}
+            result: dict[str, object] = {}
+            mode = settings.get("mode")
+            if mode in {"capture", "holdout", "destroy"}:
+                result["mode"] = mode
+            objective = settings.get("objective_tile")
+            if (isinstance(objective, list) and len(objective) == 2
+                    and all(isinstance(value, int) and not isinstance(value, bool) for value in objective)
+                    and 0 <= objective[0] < width and 0 <= objective[1] < height):
+                result["objective_tile"] = (objective[0], objective[1])
+            emplacements = settings.get("emplacements")
+            if isinstance(emplacements, list):
+                valid = []
+                for placement in emplacements[:24]:
+                    if not isinstance(placement, dict):
+                        continue
+                    kind, x, y = placement.get("kind"), placement.get("x"), placement.get("y")
+                    if (kind in {"mg_nest", "bunker", "cannon", "artillery"}
+                            and isinstance(x, int) and isinstance(y, int)
+                            and 0 <= x < width and 0 <= y < height):
+                        valid.append({"kind": kind, "x": x, "y": y})
+                result["emplacements"] = valid
+            return result
+        return {}
+
+    def _map_paths(self, mission_index: int) -> tuple[Path, Path]:
+        filename = f"mission_{mission_index + 1:02}.json"
+        return self.directory / "maps" / filename, PROJECT_MAP_DIRECTORY / filename
 
     def load_map(self, mission_index: int, width: int, height: int) -> list[list[str]] | None:
         """Load only map tiles, retaining compatibility with older callers."""
@@ -130,17 +172,21 @@ class SaveStore:
         return tiles
 
     def save_map(self, mission_index: int, mission_title: str, tiles: list[list[str]],
-                 orientations: list[list[float]] | None = None) -> None:
-        path = self.directory / "maps" / f"mission_{mission_index + 1:02}.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(".json.tmp")
+                 orientations: list[list[float]] | None = None,
+                 mission_settings: dict[str, object] | None = None) -> None:
+        paths = self._map_paths(mission_index)
+        payload: dict[str, object] = {"title": mission_title, "tiles": tiles}
+        if orientations is not None:
+            payload["orientations"] = orientations
+        if mission_settings is not None:
+            payload["mission"] = mission_settings
         try:
-            payload = {"title": mission_title, "tiles": tiles}
-            if orientations is not None:
-                payload["orientations"] = orientations
-            temporary.write_text(json.dumps(payload,
-                                            separators=(",", ":")) + "\n", encoding="utf-8")
-            temporary.replace(path)
+            for path in paths:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = path.with_suffix(".json.tmp")
+                temporary.write_text(json.dumps(payload, separators=(",", ":")) + "\n",
+                                     encoding="utf-8")
+                temporary.replace(path)
             self.logger.info("Saved custom map: %s", mission_title)
         except OSError:
-            self.logger.exception("Could not save custom map: %s", mission_title)
+            self.logger.exception("Could not save custom map bundle: %s", mission_title)

@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import math
 
 import pygame
 
 from .battle import Battle
-from .campaigns import CAMPAIGNS
+from .campaigns import CAMPAIGNS, Mission
 from .persistence import SaveStore
 from .renderer import Renderer
-from .settings import FPS, MIN_HEIGHT, MIN_WIDTH
+from .settings import BLOCKED, FPS, MIN_HEIGHT, MIN_WIDTH
 from .world import World
+
+
+EDITOR_MODES = ("capture", "holdout", "destroy")
+EDITOR_EMPLACEMENTS = ("mg_nest", "bunker", "cannon", "artillery")
 
 
 class Game:
@@ -41,15 +46,19 @@ class Game:
         self.editor_world: World | None = None
         self.editor_selected_tile = "field"
         self.editor_orientation = 0.0
+        self.editor_mission: Mission | None = None
+        self.editor_emplacements: list[dict[str, object]] = []
+        self.editor_tool = "terrain"
+        self.editor_emplacement_kind = "mg_nest"
 
     def start_mission(self, index: int) -> None:
         if not 0 <= index < len(CAMPAIGNS) or not self.is_mission_unlocked(index):
             return
         self.active_mission = index
-        mission = CAMPAIGNS[index]
+        mission, emplacements = self._custom_mission(index)
         overrides, orientations = self.save_store.load_map_data(index, mission.width, mission.height)
         self.battle = Battle(index, self.veteran_bonus, self.settings["difficulty"], overrides,
-                     orientations)
+                     orientations, mission, emplacements)
         self.save_data["stats"]["attempts"] += 1
         self.save_store.log_event("Mission started: %s (index %d)", self.battle.mission.title, index)
         self._save_progress()
@@ -79,24 +88,44 @@ class Game:
 
     def _enter_map_editor(self, mission_index: int = 0) -> None:
         self.editor_mission_index = mission_index % len(CAMPAIGNS)
-        mission = CAMPAIGNS[self.editor_mission_index]
+        mission, emplacements = self._custom_mission(self.editor_mission_index)
         overrides, orientations = self.save_store.load_map_data(
             self.editor_mission_index, mission.width, mission.height)
         self.editor_world = World(mission, self.editor_mission_index, overrides, orientations)
+        self.editor_mission = mission
+        self.editor_emplacements = emplacements or []
         self.editor_selected_tile = "field"
         self.editor_orientation = 0.0
+        self.editor_tool = "terrain"
+        self.editor_emplacement_kind = "mg_nest"
         self.renderer.camera_x = 0.0
         self.renderer.camera_y = 0.0
         self.state = "map_editor"
 
     def _save_editor_map(self) -> None:
-        if self.editor_world:
+        if self.editor_world and self.editor_mission:
+            mission_settings = {
+                "mode": self.editor_mission.mode,
+                "objective_tile": list(self.editor_mission.objective_tile),
+                "emplacements": self.editor_emplacements,
+            }
             self.save_store.save_map(self.editor_mission_index,
-                                     CAMPAIGNS[self.editor_mission_index].title,
+                                     self.editor_mission.title,
                                      self.editor_world.tiles,
-                                     self.editor_world.tile_orientations)
+                                     self.editor_world.tile_orientations,
+                                     mission_settings)
             self.save_store.log_event("Map edited and saved: %s",
-                                      CAMPAIGNS[self.editor_mission_index].title)
+                                      self.editor_mission.title)
+
+    def _custom_mission(self, mission_index: int) -> tuple[Mission, list[dict[str, object]] | None]:
+        """Apply saved mission-editor settings to a campaign mission."""
+        base = CAMPAIGNS[mission_index]
+        settings = self.save_store.load_mission_settings(mission_index, base.width, base.height)
+        mission = replace(base,
+                          mode=settings.get("mode", base.mode),
+                          objective_tile=settings.get("objective_tile", base.objective_tile))
+        emplacements = settings.get("emplacements")
+        return mission, emplacements if isinstance(emplacements, list) else None
 
     def _record_battle_end(self, won: bool) -> None:
         if not self.battle:
@@ -193,6 +222,7 @@ class Game:
                 if event.key == pygame.K_ESCAPE:
                     self.state = "menu"
                     self.editor_world = None
+                    self.editor_mission = None
                 elif event.key == pygame.K_s:
                     self._save_editor_map()
                 elif event.key in (pygame.K_LEFTBRACKET, pygame.K_RIGHTBRACKET):
@@ -204,6 +234,21 @@ class Game:
                     self.editor_selected_tile = self._cycle_editor_tile(1)
                 elif event.key == pygame.K_r:
                     self.editor_orientation = (self.editor_orientation + math.pi / 4) % math.tau
+                elif event.key == pygame.K_f and self.editor_mission:
+                    mode_index = EDITOR_MODES.index(self.editor_mission.mode)
+                    self.editor_mission = replace(
+                        self.editor_mission, mode=EDITOR_MODES[(mode_index + 1) % len(EDITOR_MODES)])
+                elif event.key == pygame.K_p:
+                    self.editor_tool = "objective"
+                elif event.key == pygame.K_g:
+                    if self.editor_tool == "emplacement":
+                        kind_index = EDITOR_EMPLACEMENTS.index(self.editor_emplacement_kind)
+                        self.editor_emplacement_kind = EDITOR_EMPLACEMENTS[
+                            (kind_index + 1) % len(EDITOR_EMPLACEMENTS)]
+                    else:
+                        self.editor_tool = "emplacement"
+                elif event.key == pygame.K_t:
+                    self.editor_tool = "terrain"
                 elif pygame.K_1 <= event.key <= pygame.K_9:
                     palette = Renderer.EDITOR_PALETTE
                     self.editor_selected_tile = palette[event.key - pygame.K_1]
@@ -224,7 +269,21 @@ class Game:
                     world_x, world_y = self.renderer.mouse_world(event.pos)
                     tile_x, tile_y = int(world_x), int(world_y)
                     if 0 <= tile_x < self.editor_world.width and 0 <= tile_y < self.editor_world.height:
-                        if event.button == 1:
+                        if event.button == 1 and self.editor_tool == "objective" and self.editor_mission:
+                            self.editor_mission = replace(self.editor_mission,
+                                                          objective_tile=(tile_x, tile_y))
+                            for clear_y in range(max(0, tile_y - 2), min(self.editor_world.height, tile_y + 3)):
+                                for clear_x in range(max(0, tile_x - 2), min(self.editor_world.width, tile_x + 3)):
+                                    if self.editor_world.tiles[clear_y][clear_x] in BLOCKED:
+                                        self.editor_world.tiles[clear_y][clear_x] = "field"
+                                        self.editor_world.tile_health[clear_y][clear_x] = \
+                                            self.editor_world._tile_max_health("field")
+                        elif event.button == 1 and self.editor_tool == "emplacement":
+                            self.editor_emplacements = [placement for placement in self.editor_emplacements
+                                                        if placement["x"] != tile_x or placement["y"] != tile_y]
+                            self.editor_emplacements.append({"kind": self.editor_emplacement_kind,
+                                                             "x": tile_x, "y": tile_y})
+                        elif event.button == 1:
                             self.editor_world.tiles[tile_y][tile_x] = self.editor_selected_tile
                             self.editor_world.tile_health[tile_y][tile_x] = self.editor_world._tile_max_health(
                                 self.editor_selected_tile)
@@ -233,6 +292,9 @@ class Game:
                                 inferred if self.editor_orientation == 0.0 and inferred is not None
                                 else self.editor_orientation
                             )
+                        elif self.editor_tool == "emplacement":
+                            self.editor_emplacements = [placement for placement in self.editor_emplacements
+                                                        if placement["x"] != tile_x or placement["y"] != tile_y]
                         else:
                             self.editor_selected_tile = self.editor_world.tile_at(world_x, world_y)
                             self.editor_orientation = self.editor_world.tile_orientations[tile_y][tile_x]
@@ -358,9 +420,10 @@ class Game:
             self.renderer._text("Press Enter for the campaign board", (self.screen.get_width() // 2,
                                 self.screen.get_height() // 2 + 28), 21, (232, 224, 199), "center")
         elif self.state == "map_editor" and self.editor_world:
-            self.renderer.draw_map_editor(self.editor_world, CAMPAIGNS[self.editor_mission_index],
+            self.renderer.draw_map_editor(self.editor_world, self.editor_mission or CAMPAIGNS[self.editor_mission_index],
                                            self.editor_selected_tile, self.editor_mission_index,
-                                           self.editor_orientation)
+                                           self.editor_orientation, self.editor_tool,
+                                           self.editor_emplacement_kind, self.editor_emplacements)
         pygame.display.flip()
 
     def _draw_pause(self) -> None:

@@ -29,9 +29,12 @@ class Battle:
     def __init__(self, mission_index: int = 0, veteran_bonus: float = 0.0,
                  difficulty: str = "standard",
                  tile_overrides: list[list[str]] | None = None,
-                 orientation_overrides: list[list[float]] | None = None) -> None:
+                 orientation_overrides: list[list[float]] | None = None,
+                 mission_override: Mission | None = None,
+                 emplacement_overrides: list[dict[str, object]] | None = None) -> None:
         self.mission_index = mission_index
-        self.mission: Mission = CAMPAIGNS[mission_index]
+        self.mission: Mission = mission_override or CAMPAIGNS[mission_index]
+        self.emplacement_overrides = emplacement_overrides
         self.world = World(self.mission, mission_index, tile_overrides, orientation_overrides)
         self.player_damage_multiplier = {"easy": 1.18, "standard": 1.12, "hard": 1.05}.get(
             difficulty, 1.12)
@@ -121,11 +124,12 @@ class Battle:
     def _spawn(self, veteran_bonus: float) -> None:
         mid = self.mission.height / 2
         for i, name in enumerate(PLAYER_NAMES):
-            x, y = self._home_spawn("us", (i // 4 - 0.5) * 2.4 + (i % 4) * 0.35)
+            x, y = self._initial_spawn("us", (i // 4 - 0.5) * 2.4 + (i % 4) * 0.35)
             soldier = Soldier(f"Sgt. {name}" if i == 0 else f"Pvt. {name}", "us", "player",
                               x, y, ("lmg" if i == 6 else "smg" if i == 7 else "rifle"),
                               hp=100 + veteran_bonus, max_hp=100 + veteran_bonus,
-                              player=(i == 0), speed=3.0, role=PLAYER_ROLES[i])
+                              player=(i == 0), speed=3.0, role=PLAYER_ROLES[i],
+                              grenades_remaining=1 if i == 0 else 0)
             if veteran_bonus:
                 soldier.reserve += int(veteran_bonus // 2)
             self.player_squad.append(soldier)
@@ -133,11 +137,15 @@ class Battle:
         ally_squads = self.mission.ally_count
         for squad in range(ally_squads):
             squad_id = f"Allied team {squad + 1}"
-            lane = squad % 3 - 1
-            squad_y = mid + lane * self.mission.height * 0.22
             for i in range(3):
-                lane_offset = squad_y - mid + (i - 1) * 1.2 + self.random.uniform(-0.45, 0.45)
-                x, y = self._home_spawn("us", lane_offset)
+                if self.mission.mode == "holdout":
+                    lane_offset = ((squad % 5) - 2) * 1.25 + (i - 1) * 0.48 \
+                        + self.random.uniform(-0.3, 0.3)
+                else:
+                    lane = squad % 3 - 1
+                    squad_y = mid + lane * self.mission.height * 0.22
+                    lane_offset = squad_y - mid + (i - 1) * 1.2 + self.random.uniform(-0.45, 0.45)
+                x, y = self._initial_spawn("us", lane_offset)
                 role = ALLY_ROLES[(i + squad) % len(ALLY_ROLES)]
                 weapon = "mortar" if role == "mortar" else "lmg" if role == "support" else self.random.choice(ALLY_WEAPONS)
                 self.allies.append(Soldier(f"{squad_id} / {role} {i + 1}", "us", squad_id,
@@ -145,8 +153,8 @@ class Battle:
 
         for i in range(self.mission.enemy_count):
             squad_id = f"German section {i // 4 + 1}"
-            x, y = self._home_spawn("german", self.random.uniform(-self.mission.height * 0.42,
-                                                                    self.mission.height * 0.42))
+            x, y = self._initial_spawn("german", self.random.uniform(-self.mission.height * 0.42,
+                                                                       self.mission.height * 0.42))
             weapon = self.random.choice(ENEMY_WEAPONS)
             role = ENEMY_ROLES[i % len(ENEMY_ROLES)]
             if role == "support":
@@ -160,20 +168,44 @@ class Battle:
                                         speed=self.random.uniform(1.8, 2.5), role=role))
 
         self._spawn_tanks()
+        # A fresh, random quarter of the autonomous force carries a single grenade.
+        # Reinforcement waves call this again for their own newly spawned troops.
+        self._issue_ai_grenades(self.allies + self.enemies)
+
+    def _issue_ai_grenades(self, soldiers: list[Soldier]) -> None:
+        """Give a random quarter of a new AI group its one lifetime grenade."""
+        for faction in ("us", "german"):
+            candidates = [soldier for soldier in soldiers
+                          if soldier.faction == faction and soldier.alive and not soldier.player
+                          and soldier.role != "tank" and not soldier.grenade_used
+                          and soldier.grenades_remaining == 0]
+            if not candidates:
+                continue
+            carrier_count = max(1, len(candidates) // 4)
+            for soldier in self.random.sample(candidates, carrier_count):
+                soldier.grenades_remaining = 1
 
     def _spawn_tanks(self) -> None:
         for faction in ("us", "german"):
             group = self.allies if faction == "us" else self.enemies
-            home_x = self.mission.width * (0.13 if faction == "us" else 0.87)
             for index in range(2):
-                x, y = self._nudge_open(home_x + index * 1.8,
-                                        self.mission.height * (0.42 + index * 0.16))
+                if self.mission.mode == "holdout" and faction == "us":
+                    x, y = self._initial_spawn(faction, (index * 2 - 1) * 2.0)
+                else:
+                    home_x = self.mission.width * (0.13 if faction == "us" else 0.87)
+                    x, y = self._nudge_open(home_x + index * 1.8,
+                                            self.mission.height * (0.42 + index * 0.16))
                 group.append(Soldier(f"{faction.title()} tank {index + 1}", faction,
                                      f"{faction.title()} armor", x, y, "tank",
                                      hp=330.0, max_hp=330.0, speed=1.05, role="tank"))
 
     def _create_control_points(self) -> None:
         ox, oy = self.mission.objective_tile
+        if self.mission.mode == "holdout":
+            px, py = self.world.nearest_open(ox + 0.5, oy + 0.5)
+            self.control_points.append(ControlPoint("C", self.mission.objective, px, py,
+                                                    owner="us", progress=1.0))
+            return
         points = (
             ("A", "WEST APPROACH", self.mission.width * 0.28, self.mission.height * 0.50),
             ("B", "CROSSROADS", self.mission.width * 0.52, self.mission.height * 0.50),
@@ -189,31 +221,46 @@ class Battle:
 
     def _create_emplacements(self) -> None:
         """Place reusable, player-operable defenses along the approach lanes."""
+        labels = {"mg_nest": "MACHINE-GUN NEST", "bunker": "BUNKER GUN",
+                  "cannon": "FIELD CANNON", "artillery": "HOWITZER"}
+        if self.emplacement_overrides is not None:
+            for placement in self.emplacement_overrides:
+                kind = placement.get("kind")
+                x = placement.get("x")
+                y = placement.get("y")
+                if kind not in labels or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+                    continue
+                if not (0 <= x < self.world.width and 0 <= y < self.world.height):
+                    continue
+                px, py = self.world.nearest_open(float(x) + 0.5, float(y) + 0.5)
+                self.emplacements.append(MountedGun(kind, px, py, labels[kind],
+                                                    ammo=8 if kind == "artillery" else 0))
+            return
         layouts = (("mg_nest", 0.30, 0.34), ("bunker", 0.52, 0.68),
                ("cannon", 0.72, 0.45), ("artillery", 0.17, 0.78))
         for kind, x_ratio, y_ratio in layouts:
             x, y = self.world.nearest_open(self.mission.width * x_ratio,
                                            self.mission.height * y_ratio)
-            label = {"mg_nest": "MACHINE-GUN NEST", "bunker": "BUNKER GUN",
-                     "cannon": "FIELD CANNON", "artillery": "HOWITZER"}[kind]
-            self.emplacements.append(MountedGun(kind, x, y, label,
+            self.emplacements.append(MountedGun(kind, x, y, labels[kind],
                                                 ammo=8 if kind == "artillery" else 0))
 
     def interact_emplacement(self) -> bool:
         """Enter the nearest defense with E, or leave the currently mounted gun."""
         if self.active_emplacement:
+            self.active_emplacement.operator = None
             self.active_emplacement = None
             self.radio_message = "LEFT EMPLACEMENT"
             self.radio_timer = 1.5
             return True
-        nearby = [gun for gun in self.emplacements
-                  if distance((self.player.x, self.player.y), (gun.x, gun.y)) <= 2.8]
+        nearby = [gun for gun in self.emplacements if gun.operator is None
+                  and distance((self.player.x, self.player.y), (gun.x, gun.y)) <= 2.8]
         if not nearby:
             self.radio_message = "MOVE CLOSER TO A BUNKER, CANNON, OR MG NEST — PRESS E"
             self.radio_timer = 2.0
             return False
         self.active_emplacement = min(nearby, key=lambda gun: distance(
             (self.player.x, self.player.y), (gun.x, gun.y)))
+        self.active_emplacement.operator = self.player
         self.player.x, self.player.y = self.active_emplacement.x, self.active_emplacement.y
         self.radio_message = f"MANNING {self.active_emplacement.name} — PRESS E TO LEAVE"
         self.radio_timer = 2.0
@@ -268,14 +315,17 @@ class Battle:
         endpoint = (gun.x + direction[0] * reach, gun.y + direction[1] * reach)
         if hit:
             endpoint = (hit.x, hit.y)
-            if gun.kind == "cannon":
-                self.explosions.append(Explosion(hit.x, hit.y, life=0.65, radius=2.4))
-                for enemy in self.enemies:
-                    separation = distance((hit.x, hit.y), (enemy.x, enemy.y))
-                    if enemy.alive and separation < 2.4:
-                        self._damage(enemy, damage * (1.0 - separation / 2.4), self.player)
-            else:
-                self._damage(hit, damage, self.player)
+        if gun.kind == "cannon":
+            blast_radius = 1.6
+            self.explosions.append(Explosion(endpoint[0], endpoint[1], life=0.55, radius=blast_radius))
+            self._damage_world(endpoint[0], endpoint[1], blast_radius, 90.0)
+            for enemy in self.enemies:
+                separation = distance(endpoint, (enemy.x, enemy.y))
+                if enemy.alive and separation < blast_radius:
+                    splash = 62.0 * (1.0 - separation / blast_radius)
+                    self._damage(enemy, splash, self.player)
+        elif hit:
+            self._damage(hit, damage, self.player)
         if gun.kind == "cannon":
             target_x, target_y = self.mission.objective_tile
             if distance(endpoint, (target_x + 0.5, target_y + 0.5)) <= 1.2:
@@ -312,6 +362,13 @@ class Battle:
             home_x = 8.5
         home_y = min(self.mission.height - 3.0, max(3.0, self.mission.height * 0.5 + lane_offset))
         return self._nudge_open(home_x, home_y)
+
+    def _initial_spawn(self, faction: str, lane_offset: float = 0.0) -> tuple[float, float]:
+        """Deploy defenders at the holdout point only for the opening wave."""
+        if self.mission.mode == "holdout" and faction == "us":
+            objective_x, objective_y = self.mission.objective_tile
+            return self._nudge_open(objective_x + 0.5, objective_y + 0.5 + lane_offset)
+        return self._home_spawn(faction, lane_offset)
 
     def _move(self, soldier: Soldier, dx: float, dy: float, dt: float, speed: float | None = None) -> None:
         length = math.hypot(dx, dy)
@@ -573,6 +630,68 @@ class Battle:
         # Stable assignments prevent squads from swapping lanes as they move.
         return available[(squad_number - 1) % len(available)]
 
+    def _ai_emplacement_range(self, gun: MountedGun) -> float:
+        return {"mg_nest": 18.0, "bunker": 20.0, "cannon": 28.0, "artillery": 42.0}[gun.kind]
+
+    def _try_ai_emplacement(self, soldier: Soldier, target: Soldier, dt: float) -> bool:
+        """Move an AI soldier to a vacant defense when it has a useful target."""
+        # Tanks cannot use mounted emplacements
+        if soldier.role == "tank":
+            return False
+        choices = [gun for gun in self.emplacements
+                   if gun.operator is None and gun is not self.active_emplacement
+                   and distance((gun.x, gun.y), (target.x, target.y)) <= self._ai_emplacement_range(gun)]
+        # Filter out guns that are out of ammo (especially artillery)
+        choices = [gun for gun in choices if gun.kind != "artillery" or gun.ammo > 0]
+        if not choices:
+            return False
+        gun = min(choices, key=lambda item: distance((soldier.x, soldier.y), (item.x, item.y)))
+        gun_distance = distance((soldier.x, soldier.y), (gun.x, gun.y))
+        if gun_distance > 1.25:
+            if gun_distance > 10.0:
+                return False
+            self._move(soldier, gun.x - soldier.x, gun.y - soldier.y, dt, soldier.speed * 1.12)
+            return True
+        gun.operator = soldier
+        gun.faction = soldier.faction
+        soldier.x, soldier.y = gun.x, gun.y
+        return True
+
+    def _ai_emplacement_shot(self, gun: MountedGun, operator: Soldier, target: Soldier) -> None:
+        if gun.fire_timer > 0 or not target.alive:
+            return
+        target_distance = distance((gun.x, gun.y), (target.x, target.y))
+        if target_distance > self._ai_emplacement_range(gun):
+            return
+        gun.facing = math.atan2(target.y - gun.y, target.x - gun.x)
+        if gun.kind == "artillery":
+            if gun.ammo <= 0:
+                gun.operator = None
+                return
+            impact_x, impact_y = self.world.nearest_open(target.x, target.y)
+            gun.ammo -= 1
+            gun.fire_timer = 7.0
+            self.artillery_strikes.append(ArtilleryStrike(impact_x, impact_y, fuse=2.8,
+                                                          radius=3.6, damage=105.0, owner=operator))
+            return
+        if not self.world.line_clear((gun.x, gun.y), (target.x, target.y)):
+            return
+        if gun.kind == "cannon":
+            blast_radius = 1.6
+            self.explosions.append(Explosion(target.x, target.y, life=0.55, radius=blast_radius))
+            self._damage_world(target.x, target.y, blast_radius, 75.0)
+            for hostile in self.all_soldiers:
+                separation = distance((target.x, target.y), (hostile.x, hostile.y))
+                if hostile.alive and hostile.faction != operator.faction and separation < blast_radius:
+                    self._damage(hostile, 48.0 * (1.0 - separation / blast_radius), operator)
+            gun.fire_timer = 2.2
+        else:
+            damage = 18.0 if gun.kind == "mg_nest" else 25.0
+            self._damage(target, damage, operator)
+            gun.fire_timer = 0.14 if gun.kind == "mg_nest" else 0.18
+        self.tracers.append(Tracer((gun.x, gun.y), (target.x, target.y), operator.faction,
+                                   life=0.16, duration=0.16, heavy=gun.kind == "cannon"))
+
     def _ai(self, soldier: Soldier, dt: float) -> None:
         for strike in self.artillery_strikes:
             away_x, away_y = soldier.x - strike.x, soldier.y - strike.y
@@ -595,15 +714,27 @@ class Battle:
         target = soldier.target
         weapon = WEAPONS[soldier.weapon_key]
         target_distance = distance((soldier.x, soldier.y), (target.x, target.y)) if target else float("inf")
+        mounted_gun = next((gun for gun in self.emplacements if gun.operator is soldier), None)
+        if mounted_gun:
+            if target and target_distance <= self._ai_emplacement_range(mounted_gun):
+                self._ai_emplacement_shot(mounted_gun, soldier, target)
+                return
+            mounted_gun.operator = None
+        if target and self._try_ai_emplacement(soldier, target, dt):
+            return
         self._heal_nearby(soldier)
-        if target and soldier.role == "assault" and not soldier.grenade_decided \
-                and soldier.grenades_remaining > 0 and target_distance <= 4.5 \
+        if target and soldier.squad_id != "player" and soldier.role == "assault" \
+                and not soldier.grenade_decided and soldier.grenades_remaining > 0 \
+                and target_distance <= 2.75 \
                 and self.ai_grenades_in_flight < 1 and self.ai_grenade_cooldown <= 0 \
-                and self.world.line_clear((soldier.x, soldier.y), (target.x, target.y)):
+                and self.world.line_clear((soldier.x, soldier.y), (target.x, target.y)) \
+                and not any(friend is not soldier and friend.alive
+                            and distance((friend.x, friend.y), (target.x, target.y)) <= 2.25
+                            for friend in self._nearby_friends(soldier)):
             soldier.grenade_decided = True
-            if self.random.random() < 0.025:
+            if self.random.random() < 0.01:
                 if self._throw_grenade(soldier, (target.x, target.y)):
-                    self.ai_grenade_cooldown = 8.0
+                    self.ai_grenade_cooldown = 25.0
         if target and soldier.role == "engineer" and target_distance <= 6.0 \
                 and soldier.role_cooldown <= 0:
             self.build_cover(soldier, (target.x, target.y))
@@ -851,7 +982,7 @@ class Battle:
         return True
 
     def _throw_grenade(self, soldier: Soldier, aim: tuple[float, float]) -> bool:
-        if soldier.grenades_remaining <= 0:
+        if soldier.grenades_remaining <= 0 or soldier.grenade_used:
             return False
         dx, dy = aim[0] - soldier.x, aim[1] - soldier.y
         length = max(0.01, math.hypot(dx, dy))
@@ -865,6 +996,7 @@ class Battle:
         grenade.life = grenade.duration
         self.thrown_grenades.append(grenade)
         soldier.grenades_remaining -= 1
+        soldier.grenade_used = True
         if not soldier.player:
             self.ai_grenades_in_flight += 1
         return True
@@ -877,6 +1009,8 @@ class Battle:
         self.ai_grenade_cooldown = max(0.0, self.ai_grenade_cooldown - dt)
         for gun in self.emplacements:
             gun.fire_timer = max(0.0, gun.fire_timer - dt)
+            if gun.operator and not gun.operator.alive:
+                gun.operator = None
         self.radio_timer = max(0.0, self.radio_timer - dt)
         self.hit_marker_timer = max(0.0, self.hit_marker_timer - dt)
         active_tracers = []
@@ -899,12 +1033,12 @@ class Battle:
                 continue
             x, y = grenade.end
             self.explosions.append(Explosion(x, y, life=0.8, radius=grenade.radius))
-            self._damage_world(x, y, grenade.radius, 270.0)
+            self._damage_world(x, y, grenade.radius, 165.0)
             for soldier in self.all_soldiers:
                 separation = distance((x, y), (soldier.x, soldier.y))
                 if soldier.alive and separation < grenade.radius \
                         and self.world.line_clear((x, y), (soldier.x, soldier.y)):
-                    damage = 115.0 * (1.0 - separation / grenade.radius)
+                    damage = 75.0 * (1.0 - separation / grenade.radius)
                     damage *= self.world.cover_factor(soldier.x, soldier.y)
                     if soldier.crouched:
                         damage *= 0.72
@@ -977,6 +1111,8 @@ class Battle:
                 if mouse_buttons[0]:
                     self._player_shot(aim, aiming, bool(dx or dy or sprinting))
         else:
+            if self.active_emplacement:
+                self.active_emplacement.operator = None
             self.active_emplacement = None
             next_alive = next((i for i, soldier in enumerate(self.player_squad) if soldier.alive), None)
             if next_alive is not None:
@@ -1196,6 +1332,7 @@ class Battle:
             name = f"{squad_id} {role}"
             destination_list.append(Soldier(name, faction, squad_id, x, y, weapon,
                                             hp=90, speed=self.random.uniform(1.9, 2.5), role=role))
+        self._issue_ai_grenades(destination_list[-count:])
         self.radio_message = "BOTH SIDES ARE RECEIVING FRONTLINE REINFORCEMENTS"
         self.radio_timer = 2.5
 
@@ -1264,7 +1401,7 @@ class Battle:
             replacement.secondary_reserve = old.secondary_reserve
             replacement.kills = old.kills
             replacement.build_charges = old.build_charges
-            replacement.grenades_remaining = 1
+            replacement.grenades_remaining = 1 if index == 0 else 0
             replacements.append(replacement)
         self.player_squad = replacements
         self.selected_index = 0
